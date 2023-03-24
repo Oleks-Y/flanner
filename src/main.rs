@@ -8,30 +8,13 @@ async fn main() {
 
     let flanner = Flanner::new(db);
 
-    // let recipes = vec![Recipe {
-    //     name: String::from("first"),
-    //     ingredients: vec![Ingredient {
-    //         name: String::from("first"),
-    //         amount: IngredientAmount {
-    //             a_type: { IngredientAmountType::MassGramms },
-    //             value: 1,
-    //         },
-    //     }],
-    // }];
+    let ration_response = match flanner.suggest_ration().await {
+        Ok(r) => r,
+        Err(e) => {
+            println!("Error: {}", e);
+            return;
+        }
+    };
 
-    // let ingredients = vec![Ingredient {
-    //     name: String::from("first"),
-    //     amount: {
-    //         IngredientAmount {
-    //             a_type: { IngredientAmountType::MassGramms },
-    //             value: 1,
-    //         }
-    //     },
-    // }];
-
-    // flanner.save_recipes(recipes).await.unwrap();
-    // flanner.save_ingredients(ingredients).await.unwrap();
-
-    ask_chat_gpt("Show me that you're working!".to_string()).await.unwrap();
-
+    println!("{:?}", ration_response);
 }

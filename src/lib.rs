@@ -1,30 +1,31 @@
 use std::{borrow::Borrow, collections::HashMap, env, error::Error, fmt::format, str::FromStr};
 
-use mongodb::{options::ClientOptions, Client, Database};
+use mongodb::{options::ClientOptions, Client, Database, bson};
 use reqwest::header::{ACCEPT, AUTHORIZATION, CONTENT_TYPE};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
+use futures::stream::TryStreamExt;
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct Recipe {
     pub name: String,
     pub ingredients: Vec<Ingredient>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct Ingredient {
     pub name: String,
     pub amount: IngredientAmount,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub enum IngredientAmountType {
     LiquidMl,
     Count,
     MassGramms,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct IngredientAmount {
     pub a_type: IngredientAmountType,
     pub value: u64,
@@ -70,6 +71,57 @@ impl Flanner {
             Err(e) => Err(Box::new(e)),
         }
     }
+
+    // concats recipes and available ingredients in string and sends it to GPT-3 with question to suggest ration
+    pub async fn suggest_ration(&self) -> Result<String, Box<dyn Error>> {
+        let mut recipes_c = self
+            .db
+            .collection::<Recipe>("recipes")
+            .find(None, None)
+            .await?;
+
+        let mut ingredients_c = self
+            .db
+            .collection::<Ingredient>("ingredients")
+            .find(None, None)
+            .await?;
+
+        let mut recipes: Vec<Recipe> = Vec::new();
+        let mut ingredients: Vec<Ingredient> = Vec::new();
+
+        while let Some(r) = recipes_c.try_next().await? {
+            recipes.push(r);
+        }
+
+        while let Some(i) = ingredients_c.try_next().await? {
+            ingredients.push(i);
+        }
+
+        dbg!(&recipes);
+        dbg!(&ingredients);
+
+        let mut recipe_names = String::new();
+        let mut ingredient_names = String::new();
+
+        for recipe in recipes.iter() {
+            recipe_names.push_str(&recipe.name);
+            recipe_names.push_str(" ");
+        }
+
+        for ingredient in ingredients.iter() {
+            ingredient_names.push_str(&ingredient.name);
+            ingredient_names.push_str(" ");
+        }
+
+        let question = format!(
+            "What is the best ration for {} from {}?",
+            recipe_names, ingredient_names
+        );
+
+        let answer = ask_chat_gpt(question).await?;
+
+        Ok(answer)
+    }
 }
 
 #[derive(Debug)]
@@ -89,7 +141,7 @@ pub async fn get_db() -> Result<Database, Box<dyn Error>> {
     let db = client
         .default_database()
         .expect("Failed to get default database");
-
+    
     Ok(db)
 }
 
@@ -146,7 +198,8 @@ pub async fn ask_chat_gpt(message: String) -> Result<String, Box<dyn Error>> {
             "content" : message
             }
         ]
-    }).to_string();
+    })
+    .to_string();
 
     dbg!(&data);
 
