@@ -1,5 +1,6 @@
 use std::{default, error::Error};
 
+use flanner::Recipe;
 use teloxide::{
     dispatching::{
         dialogue::{self, InMemStorage},
@@ -72,7 +73,7 @@ fn schema() -> UpdateHandler<Box<dyn std::error::Error + Send + Sync + 'static>>
 
     let message_handler = Update::filter_message()
         .branch(command_handler)
-        .branch(case![State::WaitingForRecipes].endpoint(recieve_recipes));
+        .branch(case![State::WaitingForRecipes].endpoint(receive_recipes));
 
     dialogue::enter::<Update, InMemStorage<State>, State, _>().branch(message_handler)
 }
@@ -93,15 +94,46 @@ async fn update_recipes(bot: Bot, dialogue: MyDialogue, msg: Message) -> Handler
     Ok(())
 }
 
-async fn recieve_recipes(bot: Bot, dialogue: MyDialogue, msg: Message) -> HandlerResult {
+async fn receive_recipes(bot: Bot, dialogue: MyDialogue, msg: Message) -> HandlerResult {
     let recipes = msg.text().unwrap();
-    log::info!("Recieved recipes: {}", recipes);
+    log::info!("Received recipes: {}", recipes);
 
     bot.send_message(msg.chat.id, "Thanks!").await?;
     dialogue.update(State::Start).await?;
-    
+
     Ok(())
 }
+
+async fn parse_recipes(recipesString: &str) -> Result<Vec<Recipe>, Box<dyn Error>> {
+    let recipes_clone = recipesString.clone();
+
+    let recipes_strings = recipes_clone.split("#").collect();
+
+    let mut recipes = Vec::new();
+
+    for recipe_string in recipes_strings {
+        let recipe = Recipe::from_string(recipe_string)?;
+        recipes.push(recipe);
+    }
+
+    Ok(())
+}
+
+
+/*
+    # Eggs in purgatory 
+        - eggs 
+        - tomatoes 
+        - onions
+        - garlic
+        - olive oil
+        - salt
+        - pepper
+        - basil
+        - oregano
+        - parsley
+        - chili flakes
+ */
 
 // async fn answer_command(bot: Bot, dialogue: MyDialogue) -> ResponseResult<()> {
 //     match cmd {
