@@ -7,7 +7,6 @@ use teloxide::{
         UpdateHandler,
     },
     prelude::*,
-    types::Me,
     utils::command::BotCommands,
 };
 
@@ -112,6 +111,7 @@ async fn parse_recipes(recipesString: &str) -> Result<Vec<Recipe>, Box<dyn Error
     let mut recipes = Vec::new();
 
     for recipe_string in recipes_strings {
+        // TODO trim end of string
         let recipe = Recipe::from_string(recipe_string)?;
         recipes.push(recipe);
     }
@@ -122,11 +122,11 @@ async fn parse_recipes(recipesString: &str) -> Result<Vec<Recipe>, Box<dyn Error
 
 /*
     # Eggs in purgatory 
-        - eggs 
-        - tomatoes 
+        - eggs, 2p
+        - tomatoes, 200g 
         - onions
         - garlic
-        - olive oil
+        - olive oil, 1tbsp
         - salt
         - pepper
         - basil

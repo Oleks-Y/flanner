@@ -1,17 +1,12 @@
 mod chatgpt;
 
-use std::{env, error::Error};  
+use std::{env, error::Error, str::FromStr};
 
+use futures::stream::TryStreamExt;
 use mongodb::{options::ClientOptions, Client, Database};
 use serde::{Deserialize, Serialize};
-use futures::stream::TryStreamExt;
 
 use crate::chatgpt::ask_chat_gpt;
-
-trait Controller {
-        
-}
-
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Recipe {
@@ -22,20 +17,144 @@ pub struct Recipe {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Ingredient {
     pub name: String,
-    pub amount: IngredientAmount,
+    pub amount: Option<IngredientAmount>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 pub enum IngredientAmountType {
     LiquidMl,
     Count,
-    MassGramms,
+    MassGrams,
+    Tbsp,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct IngredientAmount {
     pub a_type: IngredientAmountType,
     pub value: u64,
+}
+
+// #[derive(Debug, PartialEq, Eq)]
+// pub struct ParseReceiptError {
+//     reason: RecipeParseErrReason,
+// }
+
+// impl From<ParseReceiptError> for ParseReceiptError {
+//     fn from(err : Self) -> dyn Error{
+//         Error::new(err.reason)
+//     }
+// }
+
+// #[derive(Debug, PartialEq)]
+// pub struct ParseIngredientError {
+//     reason: IngredientErrReason,
+// }
+
+// #[derive(Debug, PartialEq, Eq)]
+// pub struct ParseIngredientAmountError {
+//     reason: IngredientAmountErrReason,
+// }
+
+// #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+// enum RecipeParseErrReason {
+//     NoName,
+// }
+
+// #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+// enum IngredientErrReason {
+//     NoName,
+// }
+
+// #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+// enum IngredientAmountErrReason {
+//     NoValue,
+// }
+
+impl FromStr for Recipe {
+    // type Err = ParseReceiptError;
+
+    fn from_str(s: &str) -> Result<Self, Box< dyn Error>> {
+        // TODO parse name and ingredients from string
+
+        let splitted = s.split("\n");
+
+        let name = match splitted.to_owned().nth(0) {
+            Some(n) => n,
+            None => {
+                return Err(Box::new(Error::new()));
+            }
+        };
+
+        let vector_size = splitted.clone().count();
+
+        if vector_size > 1 {
+            for i in 1..vector_size {}
+        }
+
+        Ok(Recipe {
+            name: String::from(name),
+            ingredients: Vec::new(),
+        })
+    }
+}
+
+impl FromStr for Ingredient {
+    type Err = ParseIngredientError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let splitted = s.split(|c| c == '-' && c == ',');
+
+        let name = match splitted.to_owned().nth(0) {
+            Some(n) => n,
+            None => {
+                return Err(ParseIngredientError {
+                  reason : IngredientErrReason::NoName,
+                })
+            }
+        };
+
+        let amount = match splitted.to_owned().nth(1) {
+            Some(n) => Some(IngredientAmount::from_str(s)?), // Some(String::from(n)),
+            None => None,
+        };
+
+        Ok(Ingredient {
+            name: String::from(name),
+            amount: amount,
+        })
+    }
+}
+
+impl FromStr for IngredientAmount {
+    type Err = ParseIngredientAmountError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let splitted = s.split(" ");
+
+        let value = match splitted.to_owned().nth(0) {
+            Some(n) => n,
+            None => {
+                return Err(ParseIngredientAmountError {
+                    reason: IngredientAmountErrReason::NoValue,
+                })
+            }
+        };
+
+        let amountType = match splitted.to_owned().nth(1) {
+            Some(s) => match s {
+                "ml" => IngredientAmountType::LiquidMl,
+                "g" => IngredientAmountType::MassGrams,
+                "tbsp" => IngredientAmountType::Tbsp,
+                _ => IngredientAmountType::Count,
+            },
+            None => IngredientAmountType::Count,
+        };
+
+        Ok(IngredientAmount {
+            a_type: amountType,
+            value: value.parse::<u64>()?,
+        })
+    }
 }
 
 #[derive(Debug)]
@@ -136,7 +255,6 @@ impl Flanner {
     // TODO save choosen ration to db
 }
 
-
 pub async fn get_db() -> Result<Database, Box<dyn Error>> {
     // Connect to MongoDB
     let connection_string = env::var("MONGO_DB").expect("Mongodb connection string must be set");
@@ -145,7 +263,6 @@ pub async fn get_db() -> Result<Database, Box<dyn Error>> {
     let db = client
         .default_database()
         .expect("Failed to get default database");
-    
+
     Ok(db)
 }
-
